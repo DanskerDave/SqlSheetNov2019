@@ -254,92 +254,105 @@ public class XlsxSheetIterator extends AbstractXlsSheetIterator {
 
         }
 
-        public void endElement(EndElement endElement) {
-            CellValueHolder thisCellValue = new CellValueHolder();
+        public void endElement(final EndElement endElement) {
+
+            final String xmlTagName = endElement.getName().getLocalPart();
+
             // String thisStr = null;
             // v => contents of a cell
-            if ("v".equals(endElement.getName().getLocalPart())
-                    || ("c".equals(endElement.getName().getLocalPart()) && xssfDataType.INLINESTR.equals(nextDataType))) {
-                // Process the value contents as required.
-                // Do now, as characters() may be called more than once
-                switch (nextDataType) {
-                    case BOOL:
-                        char first = value.charAt(0);
-                        thisCellValue.stringValue = first == '0' ? "FALSE" : "TRUE";
-                        break;
-                    case ERROR:
-                        thisCellValue.stringValue = "\"ERROR:" + value.toString() + '"';
-                        break;
-                    case FORMULA:
-                        // A formula could result in a string value,
-                        // so always add double-quote characters.
-                        thisCellValue.stringValue = value.toString();
-                        break;
-                    case INLINESTR:
-                        // TODO: have NOT seen an example of this, so it's untested.
-                        XSSFRichTextString rtsi = new XSSFRichTextString(value.toString());
-                        thisCellValue.stringValue = rtsi.toString();
-                        break;
-                    case SSTINDEX:
-                        String sstIndex = value.toString();
-                        try {
-                            final int idx = Integer.parseInt(sstIndex);
-                            final XSSFRichTextString rtss = (XSSFRichTextString) sharedStringsTable.getItemAt(idx);
-                            thisCellValue.stringValue = rtss.toString();
-                        } catch (final NumberFormatException ex) {
-                            thisCellValue.stringValue = "Failed to parse SST index '" + sstIndex + "': " + ex.toString();
-                        }
-                        break;
-                    case NUMBER:
-                        String n = value.toString();
-                        final BigDecimal rawBigDecimal = new BigDecimal(n, CTX_NN_15_EVEN);
-                        thisCellValue.doubleValue = rawBigDecimal.doubleValue();
-                        
-                        if (this.formatString != null) {
-                            thisCellValue.stringValue = formatter.formatRawCellContents(thisCellValue.doubleValue, this.formatIndex,
-                                    this.formatString);
-                        } else {
-                            thisCellValue.stringValue = n;
-                        }
-                        thisCellValue.dateValue = convertDateValue(thisCellValue.doubleValue, this.formatIndex,
-                                this.formatString);
-                        break;
-                    default:
-                        thisCellValue.stringValue = "(TODO: Unexpected type: " + nextDataType + ")";
-                        break;
+            if( "v".equals(xmlTagName)
+            || ("c".equals(xmlTagName) && xssfDataType.INLINESTR.equals(nextDataType))) {
+                /*
+                 * Drop into Main Logic below if its a "v"alue or a (TODO what sort of?) "c"hild
+                 */
+            } else {
+                if ("row".equals(xmlTagName)) {
+                    // We're onto a new row
+                    lastColumnNumber = -1;
+                    setCurrentSheetRowIndex(getCurrentSheetRowIndex() + 1);
                 }
-                // Output after we've seen the string contents
-                // Emit commas for any fields that were missing on this row
-                // Fill empty columns if required
-                for (int i = lastColumnNumber + 1; i < thisColumn; ++i) {
-                    // output.print(',');
-                    if (getCurrentSheetRowIndex() == 0) {
-                        getColumns().add(new CellValueHolder());
-                    } else {
-                        CellValueHolder empty = new CellValueHolder();
-                        addCurrentRowValue(empty);
-                    }
-
-                }
-                if (lastColumnNumber == -1) {
-                    lastColumnNumber = 0;
-                }
-                // Might be the empty string.
-                if (getCurrentSheetRowIndex() == 0) {
-                    getColumns().add(thisCellValue);
-                } else {
-                    addCurrentRowValue(thisCellValue);
-                }
-                // Update column
-                if (thisColumn > -1) {
-                    lastColumnNumber = thisColumn;
-                }
-            } else if ("row".equals(endElement.getName().getLocalPart())) {
-                // We're onto a new row
-                lastColumnNumber = -1;
-                setCurrentSheetRowIndex(getCurrentSheetRowIndex() + 1);
+                return;
             }
+            /*
+             * Main Logic...
+             */
+            final CellValueHolder thisCellValue = new CellValueHolder();
 
+            // Process the value contents as required.
+            // Do now, as characters() may be called more than once
+            switch (nextDataType) {
+                case BOOL:
+                    final char first = value.charAt(0);
+                    thisCellValue.stringValue = first == '0' ? "FALSE" : "TRUE";
+                    break;
+                case ERROR:
+                    thisCellValue.stringValue = "\"ERROR:" + value.toString() + '"';
+                    break;
+                case FORMULA:
+                    // A formula could result in a string value,
+                    // so always add double-quote characters.
+                    thisCellValue.stringValue = value.toString();
+                    break;
+                case INLINESTR:
+                    // TODO: have NOT seen an example of this, so it's untested.
+                    final XSSFRichTextString rtsi = new XSSFRichTextString(value.toString());
+                    thisCellValue.stringValue = rtsi.toString();
+                    break;
+                case SSTINDEX:
+                    final String sstIndex = value.toString();
+                    try {
+                        final int idx = Integer.parseInt(sstIndex);
+                        final XSSFRichTextString rtss = (XSSFRichTextString) sharedStringsTable.getItemAt(idx);
+                        thisCellValue.stringValue = rtss.toString();
+                    } catch (final NumberFormatException ex) {
+                        thisCellValue.stringValue = "Failed to parse SST index '" + sstIndex + "': " + ex.toString();
+                    }
+                    break;
+                case NUMBER:
+                    final String n = value.toString();
+
+                    thisCellValue.doubleValue = new BigDecimal(n, CTX_NN_15_EVEN).doubleValue();
+                    thisCellValue.dateValue   = convertDateValue(thisCellValue.doubleValue, this.formatIndex, this.formatString);
+                    /*
+                     * TODO would it make sense to move setting of dateValue (above)...
+                     * ...into following "if", so it only gets set if there's a formatString?
+                     * (if not, document why not with a suitable comment)
+                     */
+                    if (this.formatString != null) {
+                        thisCellValue.stringValue = formatter.formatRawCellContents(thisCellValue.doubleValue, this.formatIndex, this.formatString);
+                    } else {
+                        thisCellValue.stringValue = n;
+                    }
+                    break;
+                default:
+                    thisCellValue.stringValue = "(TODO: Unexpected type: " + nextDataType + ")";
+                    break;
+            }
+            // Output after we've seen the string contents
+            // Emit commas for any fields that were missing on this row
+            // Fill empty columns if required
+            for (int i = lastColumnNumber + 1; i < thisColumn; ++i) {
+                //  output.print(',');
+                if (getCurrentSheetRowIndex() == 0) {
+                    getColumns().add(new CellValueHolder());
+                } else {
+                    final CellValueHolder empty = new CellValueHolder();
+                    addCurrentRowValue(empty);
+                }
+            }
+            if (lastColumnNumber == -1) {
+                lastColumnNumber = 0;
+            }
+            // Might be the empty string.
+            if (getCurrentSheetRowIndex() == 0) {
+                getColumns().add(thisCellValue);
+            } else {
+                addCurrentRowValue(thisCellValue);
+            }
+            // Update column
+            if (thisColumn > -1) {
+                lastColumnNumber = thisColumn;
+            }
         }
 
         /**
