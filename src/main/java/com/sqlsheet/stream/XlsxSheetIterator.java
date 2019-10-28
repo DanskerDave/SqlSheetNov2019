@@ -283,10 +283,10 @@ public class XlsxSheetIterator extends AbstractXlsSheetIterator {
                     case SSTINDEX:
                         String sstIndex = value.toString();
                         try {
-                            int idx = Integer.parseInt(sstIndex);
-                            XSSFRichTextString rtss = new XSSFRichTextString(sharedStringsTable.getEntryAt(idx));
+                            final int idx = Integer.parseInt(sstIndex);
+                            final XSSFRichTextString rtss = (XSSFRichTextString) sharedStringsTable.getItemAt(idx);
                             thisCellValue.stringValue = rtss.toString();
-                        } catch (NumberFormatException ex) {
+                        } catch (final NumberFormatException ex) {
                             thisCellValue.stringValue = "Failed to parse SST index '" + sstIndex + "': " + ex.toString();
                         }
                         break;
