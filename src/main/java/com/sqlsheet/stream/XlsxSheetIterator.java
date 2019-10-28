@@ -276,7 +276,7 @@ public class XlsxSheetIterator extends AbstractXlsSheetIterator {
                         thisCellValue.stringValue = value.toString();
                         break;
                     case INLINESTR:
-                        // TODO: have seen an example of this, so it's untested.
+                        // TODO: have NOT seen an example of this, so it's untested.
                         XSSFRichTextString rtsi = new XSSFRichTextString(value.toString());
                         thisCellValue.stringValue = rtsi.toString();
                         break;
